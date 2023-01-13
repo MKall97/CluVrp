@@ -10,7 +10,7 @@ class SolDrawer:
 
     @staticmethod
     def draw_solutions(name, hard, solutions):
-        plot_titles = ['VND_NN', 'VND_MI', 'VNS']
+        plot_titles = ['VND', 'VND_MR', 'VNS']
         if hard:
             title_text = '_Hard_'
         else:

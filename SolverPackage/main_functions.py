@@ -1,10 +1,13 @@
-import os
 from .Data import *
 from .Clustering import *
 from .Solver import *
 from .SolDrawer import *
 import time
 import datetime
+
+"""
+Contains all the functions needed for main_one.py and main_all.py to run.
+"""
 
 
 def get_file_list(dataset_folder='Datasets\\golden-et-al-1998-set-1'):
@@ -34,6 +37,12 @@ def get_instance_name(file):
 
 
 def solve_and_draw(instance_name, file, iterations=2000, limit=500, detailed_print=False):
+    """
+    Uses all the classes from SolverPackage to extract data from current instance, create clusters for which the problem
+    is solvable, create the necessary objects (for storing information regarding each node, route, cluster, cluster
+    route), solve the hard-clustered and soft-clustered CluVrp problem (using the get solutions function, defined later)
+    , and draw the solutions
+    """
     print('\n'+'='*100)
     print(f'Solving {file}...\n')
     # starting number of clusters (will probably change to create clusters of feasible demand)
@@ -65,10 +74,20 @@ def solve_and_draw(instance_name, file, iterations=2000, limit=500, detailed_pri
     SolDrawer.draw_solutions(instance_name, hard=True, solutions=hard_solutions)
     SolDrawer.draw_solutions(instance_name, hard=False, solutions=soft_solutions)
 
+    # save routes to txt
+    save_routes(instance_name, hard=True, solutions=hard_solutions)
+    save_routes(instance_name, hard=False, solutions=soft_solutions)
+
     return number_of_nodes, vehicle_capacity, avg_dem, std_dem, hard_solutions, soft_solutions, hard_times, soft_times
 
 
 def save_results(results):
+    """
+    Saves results to a csv file, and also moves the results and plots from 'temp' folder to 'Plots_Results' folder, in a
+    sub-folder based on date and time.
+    :param results: dictionary with the results
+    :return:
+    """
 
     # Create a DataFrame from the nested dictionary
     results = pd.DataFrame.from_dict(results, orient='index')
@@ -91,7 +110,7 @@ def save_results(results):
 
     # create a sub-folder named after the current date and time in the 'Plots_Results' folder
     date_time_folder = now.strftime('%Y-%m-%d %H-%M-%S')
-    date_time_folder = date_time_folder.replace("-", "").replace(" ", "")
+    date_time_folder = date_time_folder.replace("-", "").replace(" ", "_")
     if not os.path.exists(os.path.join('Plots_Results', date_time_folder)):
         os.makedirs(os.path.join('Plots_Results', date_time_folder))
 
@@ -102,52 +121,61 @@ def save_results(results):
 
 
 def get_solutions(s, hard=True, detailed_print=False, iterations=2000, limit=500):
-    # nearest neighbor vnd
+    """
+    Gets two VND solutions (two different initial solution construction algorithms) and one VNS solution
+    :param s: Solver object that contains the methods for solving CluVrp
+    :param hard: Parameter indicating to solve the problem as hard or soft clustered
+    :param detailed_print: Print details (routes, costs etc.)
+    :param iterations: iterations for the vnd_mr method
+    :param limit: iterations without improvement after which the program stops for the vnd_mr method
+    :return: solutions and respective run times
+    """
+    # vnd
     if hard:
         text = 'Hard-clustered'
     else:
         print('-' * 100+'\n')
         text = 'Soft-clustered'
-    print(f'  {text} VND with Nearest Neighbor construction heuristic:')
+    print(f'  {text} VND:')
     start_time = time.perf_counter()
     vnd_nn_solution = s.vnd(hard=hard, construction_method=0, detailed_print=detailed_print)
     end_time = time.perf_counter()
     vnd_nn_time = end_time - start_time
 
-    # minimum insertions vnd
+    # vnd_mr, initial solutions with nearest neighbor rcl algorithm, rcl length = 3
     if hard:
         text = 'Hard-clustered'
     else:
         text = 'Soft-clustered'
-    print(f'  {text} VND with Minimum Insertions construction heuristic:')
+    print(f'  {text} VND Multiple restarts, initial solutions with nearest neighbor rcl algorithm (rcl length = 3):')
     start_time = time.perf_counter()
-    vnd_mi_solution = s.vnd(hard=hard, construction_method=1, detailed_print=detailed_print)
+    vnd_mr_solution = s.vnd_mr(hard=hard, full_random_initial_solutions=False, iterations=iterations,
+                               limit=limit, detailed_print=detailed_print)
     end_time = time.perf_counter()
-    vnd_mi_time = end_time - start_time
+    vnd_mr_time = end_time - start_time
 
-    # vns, initial solutions with nearest neighbor rcl algorithm, rcl length = 3
+    # vns
     if hard:
         text = 'Hard-clustered'
     else:
         text = 'Soft-clustered'
-    print(f'  {text} VNS, initial solutions with nearest neighbor rcl algorithm (rcl length = 3):')
+    print(f'  {text} VNS')
     start_time = time.perf_counter()
-    vns_solution = s.vns(hard=hard, full_random_initial_solutions=False, iterations=iterations,
-                         limit=limit, detailed_print=detailed_print)
+    vns_solution = s.vns(hard=hard, detailed_print=detailed_print)
     end_time = time.perf_counter()
     vns_time = end_time - start_time
 
     # store solutions and times
-    solutions = (vnd_nn_solution, vnd_mi_solution, vns_solution)
-    times = (vnd_nn_time, vnd_mi_time, vns_time)
+    solutions = (vnd_nn_solution, vnd_mr_solution, vns_solution)
+    times = (vnd_nn_time, vnd_mr_time, vns_time)
 
     return solutions, times
 
 
 def create_results_dictionary(results, instance_name, number_of_nodes, vehicle_capacity, avg_dem, std_dem,
                               hard_solutions, soft_solutions, hard_times, soft_times):
-    # A = Hard-Clustered VND Nearest Neighbor, B = Hard-Clustered VND Minimum Insertions, C = Hard-Clustered VNS
-    # D = Soft-Clustered VND Nearest Neighbor, E = Soft-Clustered VND Minimum Insertions, F = Soft-Clustered VNS
+    # A = Hard-Clustered VND, B = Hard-Clustered Multiple Restart VND, C = Hard-Clustered VNS
+    # D = Soft-Clustered VND, E = Soft-Clustered Multiple Restart VND, F = Soft-Clustered VNS
     results[instance_name] = {'Number of nodes': number_of_nodes, 'Vehicle Capacity': vehicle_capacity,
                               'Average node demand': avg_dem, 'St.Dev.': std_dem,
                               'A_Cost': hard_solutions[0][1].total_cost, 'A_Time': hard_times[0],
@@ -158,3 +186,15 @@ def create_results_dictionary(results, instance_name, number_of_nodes, vehicle_c
                               'F_Cost': soft_solutions[2][1].total_cost, 'F_Time': soft_times[2]
                               }
     return results
+
+
+def save_routes(name, hard, solutions):
+    plot_titles = ['VND', 'VND_MR', 'VNS']
+    if hard:
+        title_text = '_Hard_'
+    else:
+        title_text = '_Soft_'
+    for current_solution, solution in enumerate(solutions):
+        route_name = name + title_text + plot_titles[current_solution]
+        solution[0].save_to_txt(route_name + '_initial')
+        solution[1].save_to_txt(route_name + '_optimised')

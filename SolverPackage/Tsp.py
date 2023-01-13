@@ -10,7 +10,7 @@ class Tsp:
         self.hard = solver.hard
         self.length_of_rcl = solver.length_of_rcl
         self.construction_method = solver.construction_method
-        self.solution = solver.solution
+        self.initial_solution = solver.initial_solution
 
     def initialize_tsp(self):
         """Finds for each cluster route the nearest node to the depot."""
@@ -197,6 +197,8 @@ class Tsp:
                     last_customer = current_route.sequence_of_nodes[-2]
                     current_route.cost += self.distance_matrix[last_customer.ID][self.depot.ID]
 
-            self.solution.routes.append(cluster_route.node_route.sequence_of_nodes)
-            self.solution.cost_per_route.append(cluster_route.node_route.cost)
-            self.solution.total_cost += cluster_route.node_route.cost
+            self.initial_solution.routes.append(cluster_route.node_route.sequence_of_nodes)
+            self.initial_solution.cost_per_route.append(cluster_route.node_route.cost)
+            self.initial_solution.total_cost += cluster_route.node_route.cost
+
+        return self.initial_solution

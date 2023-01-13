@@ -1,5 +1,12 @@
 from SolverPackage import main_functions as mf
 
+"""
+Solves all instances in the dataset folder using two VND methods and one VNS method.
+The files must be CVRP instances with a VRP-REP compliant format.
+This script assumes that it is in the same directory with 'Datasets\\golden-et-al-1998-set-1', so change 
+the dataset_folder if necessary.
+"""
+
 # set dataset directory
 dataset_folder = 'Datasets\\golden-et-al-1998-set-1'
 

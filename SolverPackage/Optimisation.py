@@ -1,3 +1,6 @@
+import random
+
+
 class RelocationMove(object):
     def __init__(self):
         self.original_position = None
@@ -47,17 +50,13 @@ class TabooMoves:
 
 class Optimisation:
     def __init__(self, solver):
-        self.solution_before = solver.solution
-        self.solution_after = self.solution_before.back_up()
         self.distance_matrix = solver.distance_matrix
         self.depot = solver.depot
         self.hard = solver.hard
         self.move_type = solver.move_type
         self.optimisation_method = solver.optimisation_method
-        self.taboo = TabooMoves()
         self.best_cost = None
         self.updated_cost = None
-        self.taboo_execution = False
 
     def create_subroutes(self, sequence_of_nodes):
         """
@@ -127,25 +126,11 @@ class Optimisation:
                                   self.distance_matrix[node_a.ID][node_c.ID]
 
                     cost = costs_added - costs_removed
-                    if self.taboo_execution:
-                        if self.best_cost is not None \
-                                and self.updated_cost is not None \
-                                and self.updated_cost + cost < self.best_cost:
-                            rm.cost = cost
-                            rm.original_position = current_position
-                            rm.new_position = current_relocated_position
-                        elif (current_position, current_relocated_position)\
-                                or (current_relocated_position, current_position) in self.taboo.move_list:
-                            continue
-                        elif cost < rm.cost:
-                            rm.cost = cost
-                            rm.original_position = current_position
-                            rm.new_position = current_relocated_position
-                    else:
-                        if cost < rm.cost:
-                            rm.cost = cost
-                            rm.original_position = current_position
-                            rm.new_position = current_relocated_position
+
+                    if cost < rm.cost:
+                        rm.cost = cost
+                        rm.original_position = current_position
+                        rm.new_position = current_relocated_position
 
     def find_best_swap_move(self, sequence_of_nodes, sm):
         for position_1 in range(1, len(sequence_of_nodes) - 1):
@@ -181,25 +166,11 @@ class Optimisation:
                                   self.distance_matrix[node_b.ID][node_f.ID]
 
                 cost = costs_added - costs_removed
-                if self.taboo_execution:
-                    if self.best_cost is not None \
-                            and self.updated_cost is not None \
-                            and self.updated_cost + cost < self.best_cost:
-                        sm.cost = cost
-                        sm.first = position_1
-                        sm.second = position_2
-                    elif (position_2, position_1) in self.taboo.move_list\
-                            or (position_1, position_2) in self.taboo.move_list:
-                        continue
-                    elif cost < sm.cost:
-                        sm.cost = cost
-                        sm.first = position_1
-                        sm.second = position_2
-                else:
-                    if cost < sm.cost:
-                        sm.cost = cost
-                        sm.first = position_1
-                        sm.second = position_2
+
+                if cost < sm.cost:
+                    sm.cost = cost
+                    sm.first = position_1
+                    sm.second = position_2
 
     def find_best_two_opt_move(self, sequence_of_nodes, top):
         for position_1 in range(0, len(sequence_of_nodes) - 1):
@@ -215,25 +186,11 @@ class Optimisation:
                 costs_removed = self.distance_matrix[node_a.ID][node_b.ID] + self.distance_matrix[node_k.ID][node_l.ID]
 
                 cost = costs_added - costs_removed
-                if self.taboo_execution:
-                    if self.best_cost is not None \
-                     and self.updated_cost is not None \
-                     and self.updated_cost + cost < self.best_cost:
-                        top.cost = cost
-                        top.first = position_1 + 1
-                        top.second = position_2
-                    elif (position_2, position_1 + 1) in self.taboo.move_list \
-                            or (position_1 + 1, position_2) in self.taboo.move_list:
-                        continue
-                    elif cost < top.cost:
-                        top.cost = cost
-                        top.first = position_1 + 1
-                        top.second = position_2
-                else:
-                    if cost < top.cost:
-                        top.cost = cost
-                        top.first = position_1 + 1
-                        top.second = position_2
+
+                if cost < top.cost:
+                    top.cost = cost
+                    top.first = position_1 + 1
+                    top.second = position_2
 
     @staticmethod
     def apply_relocation_move(sequence_of_nodes, rm):
@@ -257,11 +214,11 @@ class Optimisation:
         # top.second + 1 because the list indexing stops at -1
         sequence_of_nodes[top.first: top.second + 1] = sequence_of_nodes[top.first: top.second + 1][::-1]
 
-    def local_search(self, sequence_of_nodes):
+    def local_search(self, sequence_of_nodes, initial_solution):
         best_sequence = sequence_of_nodes[:]
-        if best_sequence in self.solution_before.routes:
-            position = self.solution_before.routes.index(best_sequence)
-            best_cost = self.solution_before.cost_per_route[position]
+        if best_sequence in initial_solution.routes:
+            position = initial_solution.routes.index(best_sequence)
+            best_cost = initial_solution.cost_per_route[position]
         else:
             best_cost = self.calculate_route_cost(best_sequence)
         termination_condition = False
@@ -317,14 +274,14 @@ class Optimisation:
             iterator = iterator + 1
         return best_sequence, best_cost
 
-    def vnd(self, sequence_of_nodes):
+    def vnd(self, sequence_of_nodes, initial_solution):
         verbose = False
         best_sequence = sequence_of_nodes[:]
-        if best_sequence in self.solution_before.routes:
-            position = self.solution_before.routes.index(best_sequence)
-            best_cost = self.solution_before.cost_per_route[position]
-        else:
-            best_cost = self.calculate_route_cost(best_sequence)
+        # if best_sequence in initial_solution.routes:
+        #     position = initial_solution.routes.index(best_sequence)
+        #     best_cost = initial_solution.cost_per_route[position]
+        # else:
+        best_cost = self.calculate_route_cost(best_sequence)
         termination_condition = False
         if len(best_sequence) < 4:
             return best_sequence, best_cost
@@ -393,158 +350,103 @@ class Optimisation:
                 termination_condition = True
 
         return best_sequence, best_cost
-
-    def make_taboo_move(self, updated_sequence, updated_cost):
-
-        top = TwoOptMove()
-        top.initialize()
-        self.find_best_two_opt_move(updated_sequence, top)
-        self.taboo.move_list.append((top.first, top.second))
-        self.apply_two_opt_move(updated_sequence, top)
-        updated_cost = updated_cost + top.cost
-        return updated_cost
         
-    def vnd_taboo(self, sequence_of_nodes):
-        self.taboo_execution = True
-        verbose = False
-        updated_sequence = sequence_of_nodes[:]
-        if updated_sequence in self.solution_before.routes:
-            position = self.solution_before.routes.index(updated_sequence)
-            self.updated_cost = self.solution_before.cost_per_route[position]
-        else:
-            self.updated_cost = self.calculate_route_cost(updated_sequence)
-        termination_condition = False
-        if len(updated_sequence) < 4:
-            return updated_sequence, self.updated_cost
-        
-        self.best_cost = self.updated_cost
-        best_sequence = updated_sequence
-        iterator = 0
-
-        rm = RelocationMove()
-        sm = SwapMove()
-        top = TwoOptMove()
-        move_type = 0
-        failed_to_improve = 0
-        taboo_counter = 0
-        if verbose:
-            print('\nNew Route:')
-        while termination_condition is False:
-            # SolDrawer.draw(iterator, self.solution, self.allNodes)
-
-            # Relocations
-            if move_type == 0:
-                rm.initialize()
-                self.find_best_relocation_move(updated_sequence, rm)
-                if self.updated_cost + rm.cost < self.best_cost:
-                    self.apply_relocation_move(updated_sequence, rm)
-                    self.updated_cost += rm.cost
-                    self.best_cost = self.updated_cost
-                    best_sequence = updated_sequence
-                    failed_to_improve = 0
-                elif rm.cost < -0.00001:
-                    self.apply_relocation_move(updated_sequence, rm)
-                    self.updated_cost = self.updated_cost + rm.cost
-                    failed_to_improve = 0
-                else:
-                    move_type += 1
-                    failed_to_improve += 1
-            # Swaps
-            elif move_type == 1:
-                sm.initialize()
-                self.find_best_swap_move(updated_sequence, sm)
-                if self.updated_cost + rm.cost < self.best_cost:
-                    self.apply_swap_move(updated_sequence, sm)
-                    self.updated_cost += rm.cost
-                    self.best_cost = self.updated_cost
-                    best_sequence = updated_sequence
-                    failed_to_improve = 0
-                elif sm.cost < -0.00001:
-                    self.apply_swap_move(updated_sequence, sm)
-                    self.updated_cost = self.updated_cost + sm.cost
-                    failed_to_improve = 0
-                else:
-                    move_type += 1
-                    failed_to_improve += 1
-            # TwoOpt
-            elif move_type == 2:
-                top.initialize()
-                self.find_best_two_opt_move(updated_sequence, top)
-                if self.updated_cost + rm.cost < self.best_cost:
-                    self.apply_swap_move(updated_sequence, sm)
-                    self.updated_cost += rm.cost
-                    self.best_cost = self.updated_cost
-                    best_sequence = updated_sequence
-                    failed_to_improve = 0
-                elif top.cost < -0.00001:
-                    self.apply_two_opt_move(updated_sequence, top)
-                    self.updated_cost = self.updated_cost + top.cost
-                    failed_to_improve = 0
-                else:
-                    move_type = 0
-                    failed_to_improve += 1
-                    
-            if self.updated_cost < self.best_cost:
-                self.best_cost = self.updated_cost
-                best_sequence = updated_sequence
-                taboo_counter = 0
-
-            if verbose:
-                if failed_to_improve > 0:
-                    print(f'Trial: {iterator}')
-                    print('Failed to improve, now trying:')
-                    if move_type == 0:
-                        print('relocation')
-                    elif move_type == 1:
-                        print('swap')
-                    elif move_type == 2:
-                        print('two opt')
-            iterator = iterator + 1
-
-            if failed_to_improve == 3:
-                if len(self.taboo.move_list) == 3:
-                    self.taboo.clear_oldest()
-                self.updated_cost = self.make_taboo_move(updated_sequence, self.updated_cost)
-                failed_to_improve = 0
-                taboo_counter += 1
-
-            if taboo_counter == 4:
-                termination_condition = True
-                
-        best_cost = self.best_cost
-        self.best_cost = None
-        self.updated_cost = None
-
-        self.taboo_execution = False
-        self.taboo.empty()
-        return best_sequence, best_cost
-
-    def optimise_route(self, sequence_of_nodes):
+    def optimise_route(self, sequence_of_nodes, initial_solution):
         result, cost = None, None
         if self.optimisation_method == 0:
-            result, cost = self.local_search(sequence_of_nodes)
+            result, cost = self.local_search(sequence_of_nodes, initial_solution)
         elif self.optimisation_method == 1:
-            result, cost = self.vnd(sequence_of_nodes)
-        elif self.optimisation_method == 2:
-            result, cost = self.vnd_taboo(sequence_of_nodes)
+            result, cost = self.vnd(sequence_of_nodes, initial_solution)
         return result, cost
 
-    def optimise_solution(self):
+    def optimise_solution(self, initial_solution):
         # The hard clustered problem will be optimized by rearranging intra cluster nodes, regardless if they belong in
         # the same route. The soft clustered problem will be optimized by rearranging all the nodes in each route,
         # regardless of the cluster they belong.
-        for current_route, route in enumerate(self.solution_before.routes):
+        optimised_solution = initial_solution.back_up()
+        for current_route, route in enumerate(initial_solution.routes):
             if self.hard:
                 subroutes = self.create_subroutes(route)
                 for current_subroute, subroute in enumerate(subroutes):
-                    subroutes[current_subroute], _ = self.optimise_route(subroute)
+                    subroutes[current_subroute], _ = self.optimise_route(subroute, initial_solution)
 
-                self.solution_after.routes[current_route] = [node for subroute in subroutes for node in subroute]
-                self.solution_after.cost_per_route[current_route] = self.calculate_route_cost(
-                    self.solution_after.routes[current_route])
+                optimised_solution.routes[current_route] = [node for subroute in subroutes for node in subroute]
+                optimised_solution.cost_per_route[current_route] = self.calculate_route_cost(
+                    optimised_solution.routes[current_route])
 
             else:
-                self.solution_after.routes[current_route], self.solution_after.cost_per_route[current_route] \
-                    = self.optimise_route(route)
-        self.solution_after.total_cost = sum(self.solution_after.cost_per_route)
-        return self.solution_after
+                optimised_solution.routes[current_route], optimised_solution.cost_per_route[current_route] \
+                    = self.optimise_route(route, initial_solution)
+        optimised_solution.total_cost = sum(optimised_solution.cost_per_route)
+        return optimised_solution
+
+    def randomise_route(self, sequence_of_nodes, initial_solution):
+        randomised_sequence = sequence_of_nodes[:]
+        if randomised_sequence in initial_solution.routes:
+            position = initial_solution.routes.index(randomised_sequence)
+            randomised_cost = initial_solution.cost_per_route[position]
+        else:
+            randomised_cost = self.calculate_route_cost(randomised_sequence)
+        if len(randomised_sequence) <= 4:
+            return randomised_sequence, randomised_cost
+
+        number_of_random_relocations = round(len(randomised_sequence)/3, 0)
+
+        rm = RelocationMove()
+
+        iterator = 1
+        while iterator <= number_of_random_relocations:
+            rm.initialize()
+            current_position = random.randint(1, len(sequence_of_nodes) - 2)
+            current_relocated_position = random.randint(1, len(sequence_of_nodes) - 2)
+
+            # do not relocate to the same position
+            while current_relocated_position == current_position or current_relocated_position == current_position - 1:
+                current_relocated_position = random.randint(1, len(sequence_of_nodes) - 2)
+
+            node_a = sequence_of_nodes[current_position - 1]
+            node_b = sequence_of_nodes[current_position]
+            node_c = sequence_of_nodes[current_position + 1]
+
+            node_f = sequence_of_nodes[current_relocated_position]
+            node_g = sequence_of_nodes[current_relocated_position + 1]
+
+            costs_removed = self.distance_matrix[node_a.ID][node_b.ID] + \
+                            self.distance_matrix[node_f.ID][node_g.ID] + \
+                            self.distance_matrix[node_b.ID][node_c.ID]
+
+            costs_added = self.distance_matrix[node_f.ID][node_b.ID] + \
+                          self.distance_matrix[node_b.ID][node_g.ID] + \
+                          self.distance_matrix[node_a.ID][node_c.ID]
+
+            cost = costs_added - costs_removed
+
+            rm.cost = cost
+            rm.original_position = current_position
+            rm.new_position = current_relocated_position
+            self.apply_relocation_move(randomised_sequence, rm)
+            randomised_cost += rm.cost
+            iterator = iterator + 1
+        return randomised_sequence, randomised_cost
+
+    def randomly_select_neighboring_solution(self, solution):
+        # The hard clustered problem will be optimized by rearranging intra cluster nodes, regardless if they belong in
+        # the same route. The soft clustered problem will be optimized by rearranging all the nodes in each route,
+        # regardless of the cluster they belong.
+        neighboring_solution = solution.back_up()
+        for current_route, route in enumerate(solution.routes):
+            if self.hard:
+                subroutes = self.create_subroutes(route)
+                for current_subroute, subroute in enumerate(subroutes):
+                    subroutes[current_subroute], _ = self.randomise_route(subroute, solution)
+
+                neighboring_solution.routes[current_route] = \
+                    [node for subroute in subroutes for node in subroute]
+                neighboring_solution.cost_per_route[current_route] = self.calculate_route_cost(
+                    neighboring_solution.routes[current_route])
+
+            else:
+                neighboring_solution.routes[current_route], \
+                neighboring_solution.cost_per_route[current_route] = self.randomise_route(route, solution)
+        neighboring_solution.total_cost = sum(neighboring_solution.cost_per_route)
+        return neighboring_solution

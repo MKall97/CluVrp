@@ -3,6 +3,8 @@ from .Tsp import *
 from .Optimisation import *
 from tqdm import tqdm
 from statistics import mean
+from timeit import default_timer as timer
+import os
 
 
 class Solution:
@@ -27,6 +29,26 @@ class Solution:
         print(f'  Average Route Cost: {round(mean(self.cost_per_route),4)}')
         return ''
 
+    def save_to_txt(self, dataset_name):
+        if os.path.exists('temp/results.txt'):
+            with open('temp/results.txt', 'a') as f:
+                print(f'Dataset: {dataset_name}\n', file=f)
+                print(f'  {len(self.routes)} Routes were created:\n', file=f)
+                for i, route in enumerate(self.routes):
+                    print(f'      {i + 1}. {[node.ID for node in route]}', file=f)
+                    print(f'          Cost: {round(self.cost_per_route[i], 4)}\n', file=f)
+                print(f'  Total Cost: {round(self.total_cost, 4)}', file=f)
+                print(f'  Average Route Cost: {round(mean(self.cost_per_route), 4)}\n', file=f)
+        else:
+            with open('temp/results.txt', 'w') as f:
+                print(f'Dataset: {dataset_name}\n', file=f)
+                print(f'  {len(self.routes)} Routes were created:\n', file=f)
+                for i, route in enumerate(self.routes):
+                    print(f'      {i + 1}. {[node.ID for node in route]}', file=f)
+                    print(f'          Cost: {round(self.cost_per_route[i], 4)}\n', file=f)
+                print(f'  Total Cost: {round(self.total_cost, 4)}', file=f)
+                print(f'  Average Route Cost: {round(mean(self.cost_per_route), 4)}\n', file=f)
+
 
 class Solver:
     def __init__(self, m):
@@ -43,7 +65,7 @@ class Solver:
         self.optimisation_method = None
         self.total_cost = 0
         self.cost_per_route = []
-        self.solution = Solution()
+        self.initial_solution = Solution()
         self.optimised_solution = None
 
     def solve(self, hard=True, construction_method=0, length_of_rcl=1,
@@ -53,7 +75,7 @@ class Solver:
         :param hard: [True, False] default: True
         :param construction_method: [0: nearest neighbor, 1: minimum insertions, 2: random] | default: 0
         :param length_of_rcl: [any integer >= 0] | default: 1 (does not randomize solution) (works only with n.n.)
-        :param optimisation_method: [0: local search, 1: VND, 2: VNS, 3: Taboo] | default: 0
+        :param optimisation_method: [0: local search, 1: VND] | default: 0
         :param move_type: [0: Relocation, 1: Swap, 2: Two Opt] | default: 0 | works only with local search
         """
         # reset before each execution
@@ -69,13 +91,13 @@ class Solver:
 
         # solve the low level problem
         tsp = Tsp(self)
-        tsp.construct_solution()
+        self.initial_solution = tsp.construct_solution()
 
         # optimize the solution
         optimisation = Optimisation(self)
-        self.optimised_solution = optimisation.optimise_solution()
+        self.optimised_solution = optimisation.optimise_solution(self.initial_solution)
 
-        return self.solution, self.optimised_solution
+        return self.initial_solution, self.optimised_solution
 
     def reset(self):
         for node in self.all_nodes:
@@ -86,7 +108,7 @@ class Solver:
         self.cluster_routes = []
         self.total_cost = 0
         self.cost_per_route = []
-        self.solution = Solution()
+        self.initial_solution = Solution()
         self.optimised_solution = None
 
     def check_solution(self, solution):
@@ -139,44 +161,77 @@ class Solver:
 
         return [i_solution, o_solution]
 
-    def vnd_taboo(self, construction_method=0, hard=True, detailed_print=True):
-        # solve with vnd
-        i_solution, o_solution = self.solve(hard=hard, construction_method=construction_method, length_of_rcl=1,
-                                            optimisation_method=2)
-
-        # check the solution for errors
-        self.check_solution(o_solution)
-
-        # print results
-        if detailed_print:
-            print(o_solution)
-            print(f'  Initial solution cost: {round(i_solution.total_cost,4)}\n'
-                  f'  Improvement: {round(o_solution.total_cost-i_solution.total_cost,4)}')
-        else:
-            print(f'  Optimised solution cost: {round(o_solution.total_cost, 4)}\n')
-
-        return [i_solution, o_solution]
-
-    def vns(self, iterations=1000, limit=1000, hard=True, full_random_initial_solutions=False, detailed_print=True):
+    def vnd_mr(self, iterations=1000, limit=1000, hard=True, full_random_initial_solutions=False, detailed_print=True):
         best_cost = 10 ** 9
-        best_solution = None
-        initial_solution = None
         failed_to_improve = 0
         if full_random_initial_solutions:
             construction_method = 2
         else:
             construction_method = 0
-        for _ in tqdm(range(iterations)):
+        initial_solution, best_solution = self.solve(hard=hard, construction_method=construction_method,
+                                                     length_of_rcl=1, optimisation_method=1)
+        first_solution = best_solution.back_up()
+        improved = False
+        last_improvement = None
+        for iteration in tqdm(range(iterations)):
             i_solution, o_solution = self.solve(hard=hard, construction_method=construction_method, length_of_rcl=3,
                                                 optimisation_method=1)
             if o_solution.total_cost < best_cost:
                 best_cost, best_solution, initial_solution = o_solution.total_cost, o_solution, i_solution
                 failed_to_improve = 0
+                improved = True
+                last_improvement = iteration
             else:
                 failed_to_improve += 1
             if failed_to_improve == limit:
+
                 break
 
+        if improved:
+            print(f'  Improved'
+                  f' from {round(first_solution.total_cost, 4)}'
+                  f' to {round(best_solution.total_cost, 4)}.'
+                  f' Stopped improving from iteration {last_improvement}')
+        else:
+            print(f'  Failed to improve after {limit} restarts')
+        self.check_solution(best_solution)
+
+        if detailed_print:
+            print(best_solution)
+            print(f'  Initial solution cost: {round(initial_solution.total_cost,4)}\n'
+                  f'  Improvement: {round(best_solution.total_cost-initial_solution.total_cost,4)}')
+        else:
+            print(f'  Optimised solution cost: {round(best_solution.total_cost, 4)}\n')
+
+        return [initial_solution, best_solution]
+
+    def vns(self, hard=True, detailed_print=True):
+        _, initial_solution = self.solve(hard=hard, construction_method=0, length_of_rcl=1,
+                                            optimisation_method=1)
+        best_solution = initial_solution.back_up()
+        optimisation = Optimisation(self)
+        start = timer()
+        maximum_cpu_time = 60  # seconds
+        elapsed_time = 0
+        i = 0
+        improvements = []
+        print('  Improving solution', end='')
+        while elapsed_time < maximum_cpu_time:
+            current_solution = optimisation.randomly_select_neighboring_solution(best_solution)
+            optimised_current_solution = optimisation.optimise_solution(current_solution)
+            if optimised_current_solution.total_cost < best_solution.total_cost:
+                best_solution = optimised_current_solution.back_up()
+                improvements.append(i)
+                print('.', end='')
+            end = timer()
+            elapsed_time = end - start
+            i += 1
+        if len(improvements) > 0:
+            print(f'  \n  Executed {i} times, improved {len(improvements)} times,'
+                  f' from {round(initial_solution.total_cost,4)}'
+                  f' to {round(best_solution.total_cost,4)}')
+        else:
+            print(f'  \n  Executed {i} times, no improvement was made')
         self.check_solution(best_solution)
 
         if detailed_print:
