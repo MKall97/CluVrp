@@ -54,6 +54,7 @@ class Solver:
     def __init__(self, m):
         self.m = m
         self.all_nodes = m.all_nodes
+        self.capacity = m.capacity
         self.depot = m.all_nodes[len(m.all_nodes)-1]
         self.distance_matrix = m.distance_matrix
         self.clusters = m.clusters
@@ -114,19 +115,34 @@ class Solver:
     def check_solution(self, solution):
         all_routed = all([node.is_routed for node in self.all_nodes])
         cost_per_route_verification = []
+
+        # check that all nodes were routed
         print(f'  All nodes routed: {all_routed}')
         if not all_routed:
             not_routed = [node.ID for node in self.all_nodes if not node.is_routed]
             print(f'  These nodes were not routed: {not_routed}')
         routes_set_list = []
-        for route in solution.routes:
-            routes_set_list.append(set([node.ID for node in route]))
-        routes_intersection = set.intersection(*routes_set_list)
-        if len(routes_intersection) == 1 and self.depot.ID in routes_intersection:
-            pass
+
+        # check that nodes were routed only once, and that capacity constraints were not violated
+        for current_route, route in enumerate(solution.routes):
+            load = 0
+            for node in route:
+                load += node.demand
+                routes_set_list.append(node.ID)
+            if load > self.capacity:
+                print(f'  Capacity constraint violated. Route:{current_route}, Load:{load} > Capacity:{self.capacity}')
+        duplicates = []
+        for num in routes_set_list:
+            if routes_set_list.count(num) > 1 and num != self.depot.ID:
+                if num not in duplicates:
+                    duplicates.append(num)
+        if not duplicates:
+            print('  Nodes were routed only once')
         else:
             print(f'  Some Nodes were not routed only once!'
-                  f'  Nodes:{[i for i in routes_intersection if i != self.depot.ID]}\n')
+                  f'  Nodes:{duplicates}')
+
+        # check for cost calculation errors
         for current_route, route in enumerate(solution.routes):
             cost_per_route_verification.append(0)
             for current_position, node in enumerate(route):
@@ -143,7 +159,7 @@ class Solver:
             print(f'  No calculation error!\n'
                   f'  Done!')
 
-    def vnd(self, construction_method=0, hard=True, detailed_print=True):
+    def vnd(self, construction_method=0, hard=True, detailed_print=False):
         # solve with vnd
         i_solution, o_solution = self.solve(hard=hard, construction_method=construction_method, length_of_rcl=1,
                                             optimisation_method=1)
@@ -161,11 +177,10 @@ class Solver:
 
         return [i_solution, o_solution]
 
-    def vnd_mr(self, iterations=1000, limit=1000, hard=True, full_random_initial_solutions=False, detailed_print=True):
-        best_cost = 10 ** 9
+    def vnd_mr(self, iterations=1000, limit=1000, hard=True, full_random_initial_solutions=False, detailed_print=False):
         failed_to_improve = 0
         if full_random_initial_solutions:
-            construction_method = 2
+            construction_method = 1
         else:
             construction_method = 0
         initial_solution, best_solution = self.solve(hard=hard, construction_method=construction_method,
@@ -176,8 +191,8 @@ class Solver:
         for iteration in tqdm(range(iterations)):
             i_solution, o_solution = self.solve(hard=hard, construction_method=construction_method, length_of_rcl=3,
                                                 optimisation_method=1)
-            if o_solution.total_cost < best_cost:
-                best_cost, best_solution, initial_solution = o_solution.total_cost, o_solution, i_solution
+            if o_solution.total_cost < first_solution.total_cost:
+                best_solution, initial_solution = o_solution, i_solution
                 failed_to_improve = 0
                 improved = True
                 last_improvement = iteration
@@ -205,7 +220,7 @@ class Solver:
 
         return [initial_solution, best_solution]
 
-    def vns(self, hard=True, detailed_print=True):
+    def vns(self, hard=True, detailed_print=False):
         _, initial_solution = self.solve(hard=hard, construction_method=0, length_of_rcl=1,
                                             optimisation_method=1)
         best_solution = initial_solution.back_up()

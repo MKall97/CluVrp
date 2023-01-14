@@ -68,61 +68,16 @@ class Tsp:
             current_route.add(inserted_customer[1], self.distance_matrix)
             all_routed = all([node.is_routed for node in nodes])
 
-    def find_minimum_insertion(self, nodes, current_route):
-        candidate = None
-        insertion_position = None
-        # only for minimum insertion algorithm:
-        # add the cost of traveling from first inserted node to the depot, because it will be removed later
-        if len(current_route.sequence_of_nodes) == 3:  # [Depot, Node, Depot]
-            first_inserted_node = current_route.sequence_of_nodes[-2]
-            current_route.cost += self.distance_matrix[first_inserted_node.ID][self.depot.ID]
-        for customer in nodes:
-            min_cost = 10 ** 9
-            if not customer.is_routed and customer.ID != self.depot.ID:
-                for current_position, routed in enumerate(current_route.sequence_of_nodes):
-                    if current_position != 0:
-                        insertion = current_route.sequence_of_nodes[current_position - 1], customer, \
-                            current_route.sequence_of_nodes[current_position]
-                        # old edge -> [node_a,node_b] (remove this cost)
-                        node_a = insertion[0]
-                        node_b = insertion[2]
-
-                        # new edges -> [node_a, node_x: candidate, node_b] (add these two new costs)
-                        node_x = insertion[1]
-
-                        # new cost = cost(node_a->node_x) + cost(node_x->node_b) - cost(node_a->node_b)
-                        cost = self.distance_matrix[node_a.ID][node_x.ID] + \
-                               self.distance_matrix[node_x.ID][node_b.ID] - \
-                               self.distance_matrix[node_a.ID][node_b.ID]
-
-                        if cost < min_cost:
-                            min_cost = cost
-                            candidate = customer
-                            insertion_position = current_position
-
-                current_route.sequence_of_nodes.insert(insertion_position, candidate)
-                current_route.cost += min_cost
-                current_route.load += candidate.demand
-                candidate.is_routed = True
-
-    def apply_minimum_insertions(self, nodes, current_route):
-        all_routed = all([node.is_routed for node in nodes])
-        while not all_routed:
-            self.find_minimum_insertion(nodes, current_route)
-            all_routed = all([node.is_routed for node in nodes])
-
     def apply_construction_method(self, node_list, current_route):
         """
         Applies one of three construction methods depending on the user's choice
         :param node_list: The nodes meant for routing
         :param current_route:  Route under construction
         """
-        if self.construction_method == 2:
+        if self.construction_method == 1:
             self.solve_randomly(node_list, current_route)
         elif self.construction_method == 0:
             self.apply_nearest_neighbor(node_list, current_route)
-        elif self.construction_method == 1:
-            self.apply_minimum_insertions(node_list, current_route)
 
     def construct_solution(self):
         """
@@ -163,24 +118,20 @@ class Tsp:
                         if cluster.ID == cluster_route.nearest_node.cluster:
                             first = cluster
                             self.apply_construction_method(first.nodes, current_route)
-                    if self.construction_method != 1:  # in case of using the nearest neighbor or random
-                        # algorithm, we need to manually add the cost of traveling from the last customer to the depot
-                        last_customer = current_route.sequence_of_nodes[-2]
-                        current_route.cost += self.distance_matrix[last_customer.ID][self.depot.ID]
+                    last_customer = current_route.sequence_of_nodes[-2]
+                    current_route.cost += self.distance_matrix[last_customer.ID][self.depot.ID]
 
                 # Serve the rest of clusters if they exist in the cluster route
                 if len(cluster_route.sequence_of_clusters) > 3:
-                    if self.construction_method != 1:
-                        current_route.cost -= self.distance_matrix[last_customer.ID][self.depot.ID]
+                    current_route.cost -= self.distance_matrix[last_customer.ID][self.depot.ID]
                     for cluster in cluster_route.sequence_of_clusters:
                         # the cluster of the nearest node has already been serviced, so we must skip it
                         # we also skip the depot cluster
                         if cluster.ID == cluster_route.nearest_node.cluster or cluster.ID == self.depot.cluster:
                             continue
                         self.apply_construction_method(cluster.nodes, current_route)
-                    if self.construction_method != 1:
-                        last_customer = current_route.sequence_of_nodes[-2]
-                        current_route.cost += self.distance_matrix[last_customer.ID][self.depot.ID]
+                    last_customer = current_route.sequence_of_nodes[-2]
+                    current_route.cost += self.distance_matrix[last_customer.ID][self.depot.ID]
 
             else:
                 # in case we tackle the problem as soft clustered, the whole cluster-route will be solved as
@@ -193,12 +144,10 @@ class Tsp:
                     node_list += cluster.nodes
                     # solve the tsp instance
                     self.apply_construction_method(node_list, current_route)
-                if self.construction_method != 1:
-                    last_customer = current_route.sequence_of_nodes[-2]
-                    current_route.cost += self.distance_matrix[last_customer.ID][self.depot.ID]
+                last_customer = current_route.sequence_of_nodes[-2]
+                current_route.cost += self.distance_matrix[last_customer.ID][self.depot.ID]
 
             self.initial_solution.routes.append(cluster_route.node_route.sequence_of_nodes)
             self.initial_solution.cost_per_route.append(cluster_route.node_route.cost)
             self.initial_solution.total_cost += cluster_route.node_route.cost
-
         return self.initial_solution

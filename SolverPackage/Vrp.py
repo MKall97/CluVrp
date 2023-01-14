@@ -41,72 +41,94 @@ class Vrp:
                     cluster_routes[current_route].sequence_of_clusters[1:1] = [clu1, clu2]
                     cluster_routes[current_route].load = self.clusters[clu1].demand + self.clusters[clu2].demand
                     current_route += 1
+                    continue
 
             # merge routes considering capacity constraints and cluster nodes that are already routed
             else:
                 for route in cluster_routes:
+                    clu1_in_route = clu1 in route.sequence_of_clusters
+                    clu2_in_route = clu2 in route.sequence_of_clusters
+                    if clu1_in_route ^ clu2_in_route:
+                        already_routed = False
+                        for check_route in cluster_routes:
+                            if clu1_in_route:
+                                if clu2 in check_route.sequence_of_clusters:
+                                    already_routed = True
+                            elif clu2_in_route:
+                                if clu1 in check_route.sequence_of_clusters:
+                                    already_routed = True
+                        if already_routed:
+                            continue
+                        route_length = len(route.sequence_of_clusters)
 
-                    route_length = len(route.sequence_of_clusters)
+                        # the nodes considered for merging must not be interior nodes
+                        # (not considering the depot)
+                        cond1 = route_length > 4 and not any(value in route.sequence_of_clusters[2:route_length - 2]
+                                                             for value in [clu1, clu2])
+                        cond2 = route_length <= 4
 
-                    # the nodes considered for merging must not be inbetween the rightmost and leftmost nodes
-                    # (not considering the depot)
-                    cond1 = route_length > 4 and not any(value in route.sequence_of_clusters[2:route_length - 2]
-                                                         for value in [clu1, clu2])
-                    cond2 = route_length <= 4
-                    # one of the nodes in the savings pair should already be the leftmost or rightmost node in the
-                    # route under consideration
-                    cond3 = clu1 in route.sequence_of_clusters
-                    cond4 = clu2 in route.sequence_of_clusters
-                    # if both nodes in the savings pair are already in the route, we should stop considering to merge
-                    cond5 = cond4 ^ cond3
+                        # condition to insert the second cluster node (from the savings pair) in the route
+                        insert_clu2 = (cond1 or cond2) and clu1_in_route
+                        # condition to insert the first cluster node (from the savings pair) in the route
+                        insert_clu1 = (cond1 or cond2) and clu2_in_route
 
-                    # condition to insert the second cluster node (from the savings pair) in the route
-                    insert_clu2 = (cond1 or cond2) and cond3 and cond5
-                    # condition to insert the first cluster node (from the savings pair) in the route
-                    insert_clu1 = (cond1 or cond2) and cond4 and cond5
+                        if insert_clu2:
 
-                    if insert_clu2:
-
-                        if (self.clusters[clu2].demand + route.load) < self.capacity:
-                            if route.sequence_of_clusters[1] == clu1:
-                                route.sequence_of_clusters[1:1] = [clu2]
+                            if (self.clusters[clu2].demand + route.load) < self.capacity:
+                                if route.sequence_of_clusters[1] == clu1:
+                                    route.sequence_of_clusters.insert(1, clu2)
+                                else:
+                                    route.sequence_of_clusters.insert(route_length-1, clu2)
+                                route.load += self.clusters[clu2].demand
+                                break
                             else:
-                                route.sequence_of_clusters[route_length - 1:route_length - 1] = [clu2]
-                            route.load += self.clusters[clu2].demand
-                            break
-                        else:
-                            break
+                                continue
 
-                    elif insert_clu1:
+                        elif insert_clu1:
 
-                        if (self.clusters[clu1].demand + route.load) < self.capacity:
-                            if route.sequence_of_clusters[1] == clu2:
-                                route.sequence_of_clusters[1:1] = [clu1]
+                            if (self.clusters[clu1].demand + route.load) < self.capacity:
+                                if route.sequence_of_clusters[1] == clu2:
+                                    route.sequence_of_clusters.insert(1, clu1)
+                                else:
+                                    route.sequence_of_clusters.insert(route_length - 1, clu1)
+                                route.load += self.clusters[clu1].demand
+                                break
                             else:
-                                route.sequence_of_clusters[route_length - 1:route_length - 1] = [clu1]
-                            route.load += self.clusters[clu1].demand
-                            break
-                        else:
-                            break
+                                continue
+                    else:
+                        continue
 
                     # if the cluster nodes of the savings pair are not in any route, create a new one
-                    elif not any(value in route.sequence_of_clusters
-                                 for value in [clu1, clu2]
-                                 for route in cluster_routes):
+                if not any(value in route.sequence_of_clusters
+                             for value in [clu1, clu2]
+                             for route in cluster_routes):
 
-                        if (self.clusters[clu1].demand + self.clusters[clu2].demand) <= self.capacity:
-                            cluster_routes.append(ClusterRoute(n_clu, self.capacity))
-                            cluster_routes[current_route].sequence_of_clusters[1:1] = [clu1, clu2]
-                            cluster_routes[current_route].load = self.clusters[clu1].demand + self.clusters[clu2].demand
-                            current_route += 1
+                    if (self.clusters[clu1].demand + self.clusters[clu2].demand) <= self.capacity:
+                        cluster_routes.append(ClusterRoute(n_clu, self.capacity))
+                        cluster_routes[current_route].sequence_of_clusters[1:1] = [clu1, clu2]
+                        cluster_routes[current_route].load = self.clusters[clu1].demand + self.clusters[clu2].demand
+                        current_route += 1
 
         # Check that no common cluster nodes exist in the routes
-        setlist = [set(route.sequence_of_clusters) for route in cluster_routes]
-        # print('Valid solution: ', set.intersection(*setlist) == {n_clu})
+        routes_set_list = []
+        for route in cluster_routes:
+            for cluster in route.sequence_of_clusters:
+                routes_set_list.append(cluster)
+        duplicates = []
+        for num in routes_set_list:
+            if routes_set_list.count(num) > 1 and num != n_clu:
+                if num not in duplicates:
+                    duplicates.append(num)
+        if not duplicates:
+            pass
+        else:
+            print(f'  Some Clusters were not routed only once!'
+                  f'  Clusters:{duplicates}')
 
         # Get solo routes (routes that serve one cluster node only)
         # exclude depot (n_clu -1)
         solo_routes = []
+        setlist = [set(route.sequence_of_clusters) for route in cluster_routes]
         for i in range(0, n_clu):
             check = []
             for my_set in setlist:
@@ -115,13 +137,20 @@ class Vrp:
                 pass
             else:
                 solo_routes.append(i)
-        # print('Solo routes: ', solo_routes)
 
         # create solo routes
         for i, solo_route in enumerate(solo_routes):
             cluster_routes.append(ClusterRoute(n_clu, self.capacity))
             cluster_routes[current_route + i].sequence_of_clusters[1:1] = [solo_route]
             cluster_routes[current_route + i].load = self.clusters[solo_route].demand
+
+        missed = []
+        for cluster in range(n_clu):
+            if cluster not in routes_set_list:
+                missed.append(cluster)
+        if not missed:
+            print(f'  Some Clusters were missed!'
+                  f'  Clusters:{missed}')
 
         # replace cluster numbers with the respective objects and add cluster_route ID
         for idd, route in enumerate(cluster_routes[:]):

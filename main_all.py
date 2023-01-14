@@ -8,10 +8,15 @@ the dataset_folder if necessary.
 """
 
 # set dataset directory
-dataset_folder = 'Datasets\\golden-et-al-1998-set-1'
+datasets = 'Datasets'
+
+# IF NOT USING IN CMD comment the below line
+folder = mf.select_file(datasets, mode='folder')
+# IF NOT USING IN CMD uncomment the below line
+# folder = 'Datasets\\golden-et-al-1998-set-1'
 
 # get instances' list from dataset folder
-file_list = mf.get_file_list(dataset_folder=dataset_folder)
+file_list = mf.get_file_list(dataset_folder=folder)
 
 # initialize results dictionary
 results = {}

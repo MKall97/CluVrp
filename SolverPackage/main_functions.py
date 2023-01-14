@@ -4,13 +4,14 @@ from .Solver import *
 from .SolDrawer import *
 import time
 import datetime
+from PyInquirer import prompt
 
 """
 Contains all the functions needed for main_one.py and main_all.py to run.
 """
 
 
-def get_file_list(dataset_folder='Datasets\\golden-et-al-1998-set-1'):
+def get_file_list(dataset_folder='Datasets', mode='file'):
     # Get the current working directory
     current_dir = os.getcwd()
     my_list = []
@@ -20,11 +21,31 @@ def get_file_list(dataset_folder='Datasets\\golden-et-al-1998-set-1'):
         # Check if the current directory is the "Datasets" folder
         if dir_name == current_dir + '\\' + dataset_folder:
             # Loop through all the files in the "Datasets" folder
-            for name in file_list:
+            if mode == 'file':
+                it_list = file_list
+            else:
+                it_list = subdir_list
+            for name in it_list:
                 # Add the file to the list
                 my_list.append(dataset_folder + '\\' + name)
 
     return my_list
+
+
+def select_file(dataset_folder, mode='file'):
+    file_list = get_file_list(dataset_folder=dataset_folder, mode=mode)
+    questions = [
+        {
+            'type': 'list',
+            'name': 'selected_option',
+            'message': 'Please select a Folder:',
+            'choices': file_list,
+        }
+    ]
+    answers = prompt(questions)
+    print(f"You selected {answers['selected_option']}")
+    file = answers['selected_option']
+    return file
 
 
 def get_instance_name(file):
@@ -114,9 +135,9 @@ def save_results(results):
     if not os.path.exists(os.path.join('Plots_Results', date_time_folder)):
         os.makedirs(os.path.join('Plots_Results', date_time_folder))
 
-    # move all files that begin with 'Golden' into the sub-folder
+    # move all jpeg files into the sub-folder along with the results
     for file in os.scandir('temp'):
-        if file.name.startswith('Golden') or file.name.startswith('results'):
+        if file.name.endswith(".jpeg") or file.name.startswith('results'):
             os.rename(file.path, os.path.join('Plots_Results', date_time_folder, file.name))
 
 
@@ -178,6 +199,7 @@ def create_results_dictionary(results, instance_name, number_of_nodes, vehicle_c
     # D = Soft-Clustered VND, E = Soft-Clustered Multiple Restart VND, F = Soft-Clustered VNS
     results[instance_name] = {'Number of nodes': number_of_nodes, 'Vehicle Capacity': vehicle_capacity,
                               'Average node demand': avg_dem, 'St.Dev.': std_dem,
+                              'I_Cost': hard_solutions[0][0].total_cost,
                               'A_Cost': hard_solutions[0][1].total_cost, 'A_Time': hard_times[0],
                               'B_Cost': hard_solutions[1][1].total_cost, 'B_Time': hard_times[1],
                               'C_Cost': hard_solutions[2][1].total_cost, 'C_Time': hard_times[2],

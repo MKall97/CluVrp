@@ -37,17 +37,6 @@ class TwoOptMove(object):
         self.second = None
 
 
-class TabooMoves:
-    def __init__(self):
-        self.move_list = []
-
-    def empty(self):
-        self.move_list = []
-
-    def clear_oldest(self):
-        self.move_list.pop(0)
-
-
 class Optimisation:
     def __init__(self, solver):
         self.distance_matrix = solver.distance_matrix

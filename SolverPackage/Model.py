@@ -20,22 +20,11 @@ class Route:
         self.load = 0
 
     def add(self, node, dm, pos=-1):
-        """
-        For nearest neighbor method only
-        :param node: sdf
-        :param dm: Distance matrix
-        :param pos:
-        """
+
         self.cost += dm[self.sequence_of_nodes[pos-1].ID][node.ID]
         self.load += node.demand
         self.sequence_of_nodes.insert(pos, node)
         node.is_routed = True
-
-    def remove(self, node, dm, pos):
-        self.cost -= dm[self.sequence_of_nodes[pos-1].ID][node.ID]+dm[self.sequence_of_nodes[pos+1].ID][node.ID]
-        self.load -= node.demand
-        self.sequence_of_nodes.pop(pos)
-        node.is_routed = False
 
 
 class Cluster:
@@ -75,7 +64,7 @@ class Model:
         self.customers = []
         self.distance_matrix = []
         self.cluster_distance_matrix = []
-        self.capacity = -1
+        self.capacity = None
 
     def build_model(self):
         depot_id = len(self.clustering.nodes_clustered)
